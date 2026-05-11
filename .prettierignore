@@ -1,0 +1,12 @@
+   # 忽略所有 PHP 文件
+   *.php
+
+   # 或者忽略特定目录
+   app/
+   bootstrap/
+   config/
+   database/
+   routes/
+   tests/
+   vendor/
+
