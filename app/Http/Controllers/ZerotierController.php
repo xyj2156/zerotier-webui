@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\ZerotierService;
 use Illuminate\Http\Request;
+use Random\RandomException;
 
 /**
  * class ZerotierController
@@ -28,10 +29,17 @@ class ZerotierController
     // 网络列表
     public function networks()
     {
-        return $this->zt->getNetworks();
+        return $this->zt->networks();
     }
 
-    // 创建网络
+    /**
+     * 创建网络
+     *
+     * @param Request $request
+     *
+     * @return array
+     * @throws RandomException
+     */
     public function createNetwork(Request $request)
     {
         return $this->zt->createNetwork($request->name);
