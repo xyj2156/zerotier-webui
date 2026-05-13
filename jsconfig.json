@@ -5,5 +5,5 @@
       "@/*": ["resources/js/*"]
     }
   },
-  "include": ["resources/js/**/*"]
+  "include": ["resources/js/**/*", "auto-imports.d.ts", "components.d.ts"]
 }

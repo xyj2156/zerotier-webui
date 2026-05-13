@@ -5,18 +5,27 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      component: () => import('@/layouts/index.vue'),
-      redirect: '/dashboard',
-      children: [
-        {
-          path: 'dashboard',
-          name: 'index',
-          component: () => import('@/views/index.vue'),
-          meta: {
-            title: '首页',
-          },
-        },
-      ],
+      name: 'index',
+      component: () => import('@/views/dashboard.vue'),
+      meta: { title: '仪表盘 - ZeroTier 管理器' },
+    },
+    {
+      path: '/user',
+      name: 'user',
+      component: () => import('@/views/user.vue'),
+      meta: { title: '用户管理 - ZeroTier 管理器' },
+    },
+    {
+      path: '/networks',
+      name: 'networks',
+      component: () => import('@/views/network.vue'),
+      meta: { title: '网络管理 - ZeroTier 管理器' },
+    },
+    {
+      path: '/network/:nwid',
+      name: 'network-detail',
+      component: () => import('@/views/network-detail.vue'),
+      meta: { title: '网络详情 - ZeroTier 管理器' },
     },
   ],
 });
