@@ -1,6 +1,6 @@
 <template lang="pug">
   el-config-provider(:locale="zhCN")
-    el-container
+    el-container.h-full
       el-header.border.border-solid.border-b(class="border-b-[var(--el-menu-border-color)]")
         .flex.align-center.items-center.gap-5
           .logo
@@ -9,7 +9,7 @@
             el-menu-item(v-for="(item, i) in menus" :index="item.route" @click="handleMenuClick(item)") {{ item.name }}
           el-tag(type="success" v-if="ztVersion") {{ ztVersion }}
           template 离线
-      el-main
+      el-main(class="h-[calc(100%-60px)]")
         router-view
 </template>
 
@@ -40,7 +40,6 @@
   watch(
     () => route.path,
     (val) => {
-      console.log(val);
       menus.forEach(function (item) {
         if (item.path === val) {
           act.eq = item.route;
@@ -51,7 +50,8 @@
       });
       if (act.eq) {
         menu_active.value = act.eq;
-      } else if (act.like) {
+      }
+      if (act.like) {
         menu_active.value = act.like;
       }
     },
