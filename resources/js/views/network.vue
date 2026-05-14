@@ -1,5 +1,5 @@
 <template lang="pug">
-  el-card
+  el-card(class="h-[calc(100%-2px)]" ref="cardRef")
     template(#header)
       span 我的网络
       el-button(
@@ -12,7 +12,7 @@
           Plus
         | 新建网络
 
-    el-table(:data="networks" border stripe)
+    el-table(:data="networks" border stripe :max-height="tableMaxHeight")
       el-table-column(label="网络ID" prop="nwid")
         template(#default="{row}")
           el-button(link type="primary" @click="redirect(row.id)") {{ row.nwid }}
@@ -21,7 +21,7 @@
         template(#default="scope")
           el-tag(type="primary" v-if="scope.row.private") 私有
           el-tag(type="warning" v-else) 公开
-  el-dialog(v-model="dialog.visible" :close-on-click-modal="false")
+  el-dialog(v-model="dialog.visible" :close-on-click-modal="false" append-to-body)
     template(#header) 新建网络
     el-form(label-width="auto" size="small")
       el-form-item(label="网络名称")
@@ -44,12 +44,13 @@
 </template>
 
 <script setup>
-  import { onMounted, ref } from 'vue';
   import axios from '@/utils/fetch.js';
   import { ElMessage } from 'element-plus';
   import { Plus } from '@element-plus/icons-vue';
   import router from '@/routes/index.js';
 
+  const cardRef = ref(null);
+  const tableMaxHeight = ref('');
   const networks = ref([]);
 
   const dialog = reactive({
@@ -79,7 +80,20 @@
     },
   });
 
-  onMounted(load);
+  onMounted(function () {
+    load();
+    if (cardRef?.value?.$el) {
+      const ob = new ResizeObserver(function (entries) {
+        entries.forEach(function (dom) {
+          tableMaxHeight.value = dom.contentRect.height - 101 + 'px';
+        });
+      });
+      ob.observe(cardRef.value.$el);
+      onUnmounted(function () {
+        ob.disconnect();
+      });
+    }
+  });
 
   async function load() {
     const res = await axios.get('/api/networks');

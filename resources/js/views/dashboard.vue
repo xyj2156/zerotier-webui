@@ -1,5 +1,5 @@
 <template lang="pug">
-  el-card
+  el-card(class="h-[calc(100%-2px)]")
     template(#header)
       span 系统状态
     el-descriptions(:column="2" border)
