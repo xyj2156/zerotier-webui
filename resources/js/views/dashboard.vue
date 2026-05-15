@@ -8,7 +8,7 @@
       el-descriptions-item(label="在线状态")
         el-tag(v-if="status.online" type="success") 在线
         el-tag(v-else type="danger") 离线
-      el-descriptions-item(label="网络数量") {{ networks?.length }}
+      el-descriptions-item(label="网络数量") {{ networks }}
 </template>
 
 <script setup>
@@ -16,13 +16,13 @@
   import axios from '@/utils/fetch.js';
 
   const status = ref({});
-  const networks = ref([]);
+  const networks = ref(0);
 
   onMounted(() => {
     axios.get('/api/status').then(function (res) {
       status.value = res;
     });
-    axios.get('/api/networks').then(function (res) {
+    axios.get('/api/network-count').then(function (res) {
       networks.value = res;
     });
   });

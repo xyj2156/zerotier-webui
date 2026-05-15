@@ -23,13 +23,43 @@ class ZerotierController
     // 仪表盘状态
     public function status()
     {
-        return $this->zt->getStatus();
+        [
+            'success' => $success,
+            'result'  => $result,
+            'message' => $message,
+        ] = $this->zt->getStatus();
+
+        return $this->json(
+            $success ? 0 : 1,
+            $message,
+            $result,
+        );
     }
 
     // 网络列表
     public function networks()
     {
-        return $this->zt->networks();
+        [
+            'success' => $success, 'result' => $result, 'message' => $message,
+        ] = $this->zt->networks();
+        return $this->json(
+            $success ? 0 : 1,
+            $message,
+            $result,
+        );
+    }
+
+    public function networkCount()
+    {
+        [
+            'success' => $success, 'result' => $result, 'message' => $message,
+        ] = $this->zt->networksCount();
+
+        return $this->json(
+            $success ? 0 : 1,
+            $message,
+            $result,
+        );
     }
 
     /**
@@ -67,5 +97,14 @@ class ZerotierController
     public function deleteMember($nwid, $id)
     {
         return $this->zt->deleteMember($nwid, $id);
+    }
+
+    protected function json(int $status = 0, string|array $message = '', iterable|int|string|null $result = null)
+    {
+        return [
+            'status'  => $status,
+            'message' => $message,
+            'result'  => $result,
+        ];
     }
 }

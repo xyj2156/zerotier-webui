@@ -40,8 +40,8 @@ function request(method, url, data = null) {
     .then(function (json) {
       // 可以在这里添加统一的业务逻辑处理
       // 例如：检查后端返回的业务状态码
-      if (json.success) {
-        return json.data;
+      if (json.status === 0) {
+        return json.result;
       }
       throw new Error(JSON.stringify(json));
     });

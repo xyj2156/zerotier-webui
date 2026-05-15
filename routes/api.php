@@ -16,6 +16,7 @@ $router->group([
 ], function (Router $router) {
     $router->get('/status', [ZerotierController::class, 'status']);
     $router->get('/networks', [ZerotierController::class, 'networks']);
+    $router->get('/network-count', [ZerotierController::class, 'networkCount']);
     $router->post('/networks', [ZerotierController::class, 'createNetwork']);
     $router->get('/networks/{nwid}', [ZerotierController::class, 'network']);
     $router->get('/networks/{nwid}/members', [ZerotierController::class, 'members']);

@@ -36,11 +36,11 @@ class ZeroTierService
 
             return [
                 'success' => $response->successful(),
-                'status'  => $response->status(),
-                'data'    => $response->json(),
+                'result'  => $response->json(),
+                'message' => 'OK',
             ];
         } catch (\Exception $e) {
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'result' => null, 'message' => $e->getMessage()];
         }
     }
 
@@ -56,9 +56,19 @@ class ZeroTierService
      */
     public function networks(): array
     {
-        $list = $this->request('get', '/controller/network');
-        foreach ($list['data'] as &$item) {
-            $temp = $this->getNetwork($item)['data'] ?? null;
+        [
+            'success' => $success, 'result' => $list,
+        ] = $this->request('get', '/controller/network');
+
+        if (!$success) {
+            return ['success' => false, 'result' => null, 'message' => '获取网络列表失败'];
+        }
+
+        foreach ($list as &$item) {
+            $temp = $this->getNetwork($item)['result'] ?? null;
+            if (!$temp) {
+                continue;
+            }
             $item = [
                 'id'      => $temp['id'],
                 'nwid'    => $temp['nwid'],
@@ -66,7 +76,19 @@ class ZeroTierService
                 'name'    => $temp['name'],
             ];
         }
-        return ['success' => true, 'data' => $list['data']];
+        return ['success' => true, 'result' => $list, 'message' => ''];
+    }
+
+    public function networksCount(): array
+    {
+        [
+            'success' => $success, 'result' => $list,
+        ] = $this->request('get', '/controller/network');
+
+        if (!$success) {
+            return ['success' => false, 'result' => null, 'message' => '获取网络列表失败'];
+        }
+        return ['success' => true, 'result' => count($list), 'message' => ''];
     }
 
     /**
