@@ -37,7 +37,7 @@ class ZeroTierService
             return [
                 'success' => $response->successful(),
                 'result'  => $response->json(),
-                'message' => 'OK',
+                'message' => '',
             ];
         } catch (\Exception $e) {
             return ['success' => false, 'result' => null, 'message' => $e->getMessage()];

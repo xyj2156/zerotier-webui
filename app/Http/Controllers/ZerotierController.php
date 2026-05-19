@@ -78,7 +78,19 @@ class ZerotierController
     // 网络详情
     public function network($nwid)
     {
-        return $this->zt->getNetwork($nwid);
+        $response = $this->zt->getNetwork($nwid);
+        if ($response['success']) {
+            return $this->json(
+                0,
+                $response['message'],
+                $response['result'],
+            );
+        }
+        return $this->json(
+            1,
+            $response['message'],
+            $response['result'],
+        );
     }
 
     // 成员列表
