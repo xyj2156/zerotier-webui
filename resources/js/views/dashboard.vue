@@ -8,7 +8,8 @@
       el-descriptions-item(label="在线状态")
         el-tag(v-if="status.online" type="success") 在线
         el-tag(v-else type="danger") 离线
-      el-descriptions-item(label="网络数量") {{ networks }}
+      el-descriptions-item(label="网络数量")
+        el-link(underline="always" @click="router.push({name:'networks'})") {{ networks }}
 </template>
 
 <script setup>
@@ -17,6 +18,8 @@
 
   const status = ref({});
   const networks = ref(0);
+
+  const router = useRouter();
 
   onMounted(() => {
     axios.get('/api/status').then(function (res) {
