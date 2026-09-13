@@ -1,8 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { getToken } from '@/utils/auth';
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/login.vue'),
+      meta: { title: '登录 - ZeroTier 管理器', public: true },
+    },
     {
       path: '/',
       name: 'index',
@@ -13,7 +20,7 @@ const router = createRouter({
       path: '/user',
       name: 'user',
       component: () => import('@/views/user.vue'),
-      meta: { title: '用户管理 - ZeroTier 管理器' },
+      meta: { title: '账户 - ZeroTier 管理器' },
     },
     {
       path: '/networks',
@@ -30,14 +37,18 @@ const router = createRouter({
   ],
 });
 
-router.beforeEach((to, from) => {
-  document.title = 'Loading ...';
-  console.log('before', from);
+router.beforeEach((to) => {
+  if (!to.meta.public && !getToken()) {
+    return { name: 'login' };
+  }
+  if (to.name === 'login' && getToken()) {
+    return { name: 'index' };
+  }
+  return true;
 });
 
-router.afterEach((to, from) => {
-  document.title = to.meta?.title;
-  console.log('after', to);
+router.afterEach((to) => {
+  document.title = to.meta?.title || 'ZeroTier 管理器';
 });
 
 export default router;

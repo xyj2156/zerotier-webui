@@ -15,11 +15,13 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        // 默认管理员：email=admin@example.com / password=password（可用 .env 覆盖邮箱）
+        User::query()->updateOrCreate(
+            ['email' => env('ADMIN_EMAIL', 'admin@example.com')],
+            [
+                'name'     => '管理员',
+                'password' => env('ADMIN_PASSWORD', 'password'),
+            ]
+        );
     }
 }

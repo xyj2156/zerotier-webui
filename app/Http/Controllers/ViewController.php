@@ -7,11 +7,10 @@ namespace App\Http\Controllers;
  *
  * @package App\Http\Controllers
  */
-class ViewController
+class ViewController extends Controller
 {
     public function __invoke()
     {
-        $jwt = null;
-        return view('index', compact('jwt'));
+        return view('index');
     }
 }
