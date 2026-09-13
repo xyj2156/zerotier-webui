@@ -1,58 +1,125 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# zerotier-webui
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+面向 **zerotier-one 本地自建控制器** 的极简 Web 管理面板。
+只在你想改网络的时候 `php artisan serve` 起来，改完 `Ctrl+C` 走人——没有守护进程、没有 Docker、系统里不留任何常驻服务。
 
-## About Laravel
+## 特性
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- **按需启动**：单进程 `php artisan serve` 就能跑完前后端；不用的时候完全关掉，不留后台。
+- **零外部依赖**：默认 SQLite（`database/database.sqlite` 一个文件），账号、会话、缓存都在里面，删掉即归零。
+- **不接管 ZeroTier Central**：直接对接 zerotier-one 内置的本地控制器 REST API（`http://127.0.0.1:9993` + `X-ZT1-Auth` 头），网络拓扑、密钥、成员全在你自己机器上。
+- **配置字段整体透传**：network config 与 member 不裁剪；前端表单覆盖不到的字段留了 JSON 全量编辑兜底，zerotier-one 后续新增字段不用改代码即可维护。
+- **前端命名路由**：接入 [`@route-forge/vue`](https://github.com/xyj2156/route-forge) 与后端 [`route-forge/laravel`](https://github.com/xyj2156/route-forge-laravel)，接口调用完全按名拼装，无手写 URL。
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 运行环境
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+| 组件 | 版本 | 备注 |
+| ---- | ---- | ---- |
+| PHP | 8.3+ | 扩展需 `pdo_sqlite`、`mbstring`、`openssl`、`curl` |
+| Composer | 2.x | 后端依赖 |
+| Node.js | 20+ | 前端构建 |
+| pnpm | 9+ | 前端包管理（`corepack enable` 即可） |
+| zerotier-one | 1.12+ | 需开启本地控制器 API（默认监听 `127.0.0.1:9993`） |
 
-## Learning Laravel
+## 快速开始
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### 1. 装依赖
 
 ```bash
-composer require laravel/boost --dev
+git clone https://github.com/xyj2156/zerotier-webui.git
+cd zerotier-webui
 
-php artisan boost:install
+composer install
+pnpm install
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 2. 首次初始化（一次性）
 
-## Contributing
+```bash
+cp .env.example .env
+php artisan key:generate
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+touch database/database.sqlite
+php artisan migrate --seed
+```
 
-## Code of Conduct
+`--seed` 会建一个默认管理员：`admin@example.com` / `password`。想换邮箱或密码，先在 `.env` 里配 `ADMIN_EMAIL` / `ADMIN_PASSWORD` 再 migrate。
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 3. 配 zerotier-one 控制器
 
-## Security Vulnerabilities
+编辑 `.env`：
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```dotenv
+# 控制器地址，本机默认 9993
+ZEROTIER_API_URL=http://127.0.0.1:9993
 
-## License
+# 令牌：控制器所在机器上 authtoken_secret 文件的内容
+#   Linux:   cat ~/.zerotier/authtoken_secret
+#   Windows: type C:\ProgramData\ZeroTier\One\authtoken_secret
+ZEROTIER_API_TOKEN=<粘贴上面的字符串>
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# 控制器 10 位节点地址：留空则自动 GET /status 拿；仅多控制器场景手填
+ZEROTIER_NODE_ADDRESS=
+```
+
+### 4. 要用的时候启动
+
+**推荐（日常使用，只留一个进程）**：先 build 一次，之后每次只跑 `php artisan serve`。
+
+```bash
+pnpm build              # 产物落到 public/build，一次即可
+php artisan serve       # 浏览器打开 http://127.0.0.1:8000
+```
+
+**开发模式（前端热更新）**：两个终端。
+
+```bash
+# 终端 A
+php artisan serve
+
+# 终端 B
+pnpm dev                # http://127.0.0.1:5173，代理到 artisan serve
+```
+
+### 5. 用完关掉
+
+终端按 `Ctrl+C` 即可。进程不留痕、系统不留后台。想彻底重置删掉 `database/database.sqlite` 再重新 `migrate --seed`。
+
+## 与 ZeroTier Central 的差异
+
+本项目对接的是 **zerotier-one 本地控制器**，不是 `my.zerotier.com` 的 Central API。上手前值得知道：
+
+- 列表 `GET /controller/network` 只返回 `nwid` 字符串数组，需要逐个 `GET /controller/network/<nwid>` 拉配置——服务层已经聚合好了。
+- 新建网络时 `nwid` **必须** = 控制器自身 10 位节点地址 + 6 位随机 hex，且 body 要带 `active: true`；否则 403。
+- 没有 Central 的独立 `/route`、`/node`、`/peer` drop 端点——路由、成员授权、别名全部通过 `POST /controller/network/<nwid>` 的整体 config 完成。
+- `member.clientVersion` 本地是字符串（如 `"1.12.2"`），Central 是对象；前端已做兼容。
+
+## 开发
+
+```bash
+php artisan test        # 认证 + zerotier API mock 共 12 例
+```
+
+代码结构：
+
+```
+app/
+├── Http/Controllers/       # LoginController / ViewController / ZerotierController
+├── Http/Middleware/Jwt.php
+└── Services/
+    ├── JwtService.php      # 自写 HS256，无外部 JWT 包
+    └── ZerotierService.php # zerotier-one 本地控制器 HTTP 客户端
+resources/js/
+├── routes/index.js         # 前端路由（@route-forge/vue 命名调用）
+├── utils/auth.js           # localStorage 令牌 / 用户
+└── views/
+    ├── login.vue
+    ├── dashboard.vue
+    ├── network.vue
+    ├── network-detail.vue  # 成员管理 / 网络配置 / 原始数据 三 tab
+    └── user.vue
+```
+
+## 许可
+
+[MIT](LICENSE) © 2026 xyj2156
