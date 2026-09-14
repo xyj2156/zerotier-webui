@@ -24,9 +24,13 @@
         "vite-plugin-pug": "^0.4.1"
     },
     "dependencies": {
+        "@codemirror/lang-json": "^6.0.2",
+        "@codemirror/state": "^6.7.4",
+        "@codemirror/view": "^6.43.11",
         "@element-plus/icons-vue": "^2.3.2",
         "@route-forge/core": "3.0.0",
         "@route-forge/vue": "3.0.0",
+        "codemirror": "^6.0.2",
         "element-plus": "^2.14.0",
         "pinia": "^3.0.4",
         "vue": "^3.5.34",

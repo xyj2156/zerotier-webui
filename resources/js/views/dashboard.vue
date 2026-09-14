@@ -1,11 +1,12 @@
 <template lang="pug">
   el-card(class="h-[calc(100%-2px)]")
     template(#header)
-      span 系统状态
-      el-popover(content="刷新" placement="top")
-        template(#reference)
-          el-icon.ml-5px.cursor-pointer.text-primary(@click="load")
-            Refresh
+      .flex.items-center
+        span 系统状态
+        el-popover(content="刷新" placement="top")
+          template(#reference)
+            el-icon.ml-5px.cursor-pointer.text-primary(@click="load")
+              Refresh
     el-descriptions(:column="2" border v-loading="pending")
       el-descriptions-item(label="节点地址") {{ status.address || '-' }}
       el-descriptions-item(label="版本") {{ status.version || '-' }}

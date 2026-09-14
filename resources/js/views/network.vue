@@ -1,16 +1,18 @@
 <template lang="pug">
   el-card(class="h-[calc(100%-2px)]" ref="cardRef")
     template(#header)
-      span 我的网络
-      .float-right
-        el-popover(content="刷新" placement="top")
-          template(#reference)
-            el-icon.mr-10px.cursor-pointer.text-primary(@click="load")
-              Refresh
-        el-button(type="primary" size="small" @click="dialog.show()")
-          el-icon
-            Plus
-          | 新建网络
+      .flex.justify-between
+        .flex.items-center
+          span 我的网络
+          el-popover(content="刷新" placement="top")
+            template(#reference)
+              el-icon.cursor-pointer.text-primary.ml-10px(@click="load")
+                Refresh
+        .float-right
+          el-button(type="primary" size="small" @click="dialog.show()")
+            el-icon
+              Plus
+            | 新建网络
 
     el-table(:data="networks" border stripe v-loading="pending" :max-height="tableMaxHeight")
       el-table-column(label="网络ID" prop="nwid" width="200")
@@ -85,17 +87,19 @@
 
   function blank() {
     return {
-      visible: false,
-      name: '',
-      private: true,
-      cidr: '',
-      mtu: 2800,
-      multicastLimit: 32,
-      multicastTTL: 128,
-      enableBroadcast: true,
-      v4zt: true,
-      v6plane: false,
-      rfc4193: false,
+      data: {
+        visible: false,
+        name: '',
+        private: true,
+        cidr: '',
+        mtu: 2800,
+        multicastLimit: 32,
+        multicastTTL: 128,
+        enableBroadcast: true,
+        v4zt: true,
+        v6plane: false,
+        rfc4193: false,
+      },
     };
   }
   const dialog = reactive(blank());
@@ -113,7 +117,11 @@
       multicastTTL: dialog.multicastTTL,
       enableBroadcast: dialog.enableBroadcast,
       v4AssignMode: { zt: dialog.v4zt },
-      v6AssignMode: { '6plane': dialog.v6plane, rfc4193: dialog.rfc4193, zt: false },
+      v6AssignMode: {
+        '6plane': dialog.v6plane,
+        rfc4193: dialog.rfc4193,
+        zt: false,
+      },
     };
     const { error } = await call('networks.store', { body });
     if (error) {
@@ -181,7 +189,7 @@
     const prefix = parseInt(parts[1], 10);
     const ip32 = ipToInt(parts[0]);
     if (ip32 === null || !(prefix >= 1 && prefix <= 31)) return null;
-    const host = (1 << (32 - prefix)) - 1 >>> 0;
+    const host = ((1 << (32 - prefix)) - 1) >>> 0;
     const net = (ip32 & ~host) >>> 0;
     const bcast = (net + host) >>> 0;
     return { start: intToIp(net + 1), end: intToIp(bcast - 1) };
@@ -191,10 +199,14 @@
     if (!m) return null;
     const oct = m.slice(1).map(Number);
     if (oct.some((o) => o > 255)) return null;
-    return (((oct[0] << 24) >>> 0) + (oct[1] << 16) + (oct[2] << 8) + oct[3]) >>> 0;
+    return (
+      (((oct[0] << 24) >>> 0) + (oct[1] << 16) + (oct[2] << 8) + oct[3]) >>> 0
+    );
   }
   function intToIp(n) {
-    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
+    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join(
+      '.'
+    );
   }
 
   function formatTime(ts) {
