@@ -1,12 +1,12 @@
 name: release
 
-# 打 tag（v1.0.0 或 1.0.0 两种写法都识别）即自动构建六个平台的单执行文件并发布到 GitHub Release。
+# 打 v 前缀 tag（如 v2.0.0）即自动构建六个平台的单执行文件并发布到 GitHub Release。
+# 版本口径：2.x 起为 Go 单执行文件实现；1.x 是 Laravel 版，代码归档在 laravel 分支。
 # 也可在 Actions 页手动触发（workflow_dispatch）以便验证流水线本身。
 on:
   push:
     tags:
       - 'v*'
-      - '[0-9]*'
   workflow_dispatch:
     inputs:
       version:
@@ -57,10 +57,8 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-          elif [[ "${GITHUB_REF_NAME}" == v* ]]; then
-            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
-            echo "version=v${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: 交叉编译六个目标

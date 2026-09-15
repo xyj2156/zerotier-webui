@@ -101,7 +101,9 @@ pnpm -C web build    # 前端产物构建
 
 ## 发布
 
-推送形如 `v1.0.0`（或 `1.0.0`，会自动补 `v` 前缀）的 tag 即触发 `.github/workflows/release.yml`：跑 `gofmt`/`go vet`/`go test` → 构建前端 → 交叉编译六个目标 → 连同 `checksums.txt` 上传到 GitHub Release。也可在 Actions 页手动触发以验证流水线（手动触发不创建 Release）。
+推送 `v` 前缀的 tag（如 `v2.0.0`）即触发 `.github/workflows/release.yml`：跑 `gofmt`/`go vet`/`go test` → 构建前端 → 交叉编译六个目标 → 连同 `checksums.txt` 上传到 GitHub Release。也可在 Actions 页手动触发以验证流水线（手动触发不创建 Release，产物标记为 prerelease 之外仅用于自检）。
+
+版本口径：**2.x 起为 Go 单执行文件实现；1.x 是 Laravel 版本**，其代码与历史归档在 `laravel` 分支。tag 必须带 `v` 前缀——Actions 的 tag 过滤模式只保证 `*` 这类通配可用，不放裸版本号以免出现「打了 tag 但流水线没跑」的静默失败。
 
 ## 许可
 
