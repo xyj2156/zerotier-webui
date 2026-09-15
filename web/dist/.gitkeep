@@ -1,0 +1,1 @@
+# 占位：保证未构建前端时 go:embed all:dist 仍可编译；真实产物由 pnpm build 生成。

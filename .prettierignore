@@ -1,0 +1,8 @@
+# 依赖与构建产物
+/web/node_modules/
+/web/dist/
+/bin/
+
+# 生成物
+/web/auto-imports.d.ts
+/web/components.d.ts

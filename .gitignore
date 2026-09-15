@@ -1,0 +1,24 @@
+# Go 构建产物
+/bin/
+*.exe
+*.syso
+
+# 前端依赖与构建产物（web/dist 由 go:embed 读取，仅占位文件入库）
+/web/node_modules/
+/web/dist/*
+!/web/dist/.gitkeep
+
+# 生成物
+/web/auto-imports.d.ts
+/web/components.d.ts
+
+# 本地配置与日志
+/.env
+/.env.local
+*.log
+
+# 编辑器与系统
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db

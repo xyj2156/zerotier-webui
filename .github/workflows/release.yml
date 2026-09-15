@@ -1,0 +1,85 @@
+name: release
+
+# 打 tag（v1.0.0 或 1.0.0 两种写法都识别）即自动构建六个平台的单执行文件并发布到 GitHub Release。
+# 也可在 Actions 页手动触发（workflow_dispatch）以便验证流水线本身。
+on:
+  push:
+    tags:
+      - 'v*'
+      - '[0-9]*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '写入二进制的版本号（默认 dev）'
+        required: false
+        default: 'dev'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # git describe 需要完整历史与 tag 才能推出版本号
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: 校验 Go 代码
+        run: |
+          test -z "$(gofmt -l .)" || { echo '以下文件未格式化：'; gofmt -l .; exit 1; }
+          go vet ./...
+          go test ./... -count=1
+
+      - name: 构建前端产物
+        run: |
+          pnpm -C web install --frozen-lockfile
+          pnpm -C web build
+
+      - name: 解析版本号
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${GITHUB_REF_NAME}" == v* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=v${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 交叉编译六个目标
+        shell: pwsh
+        run: ./scripts/build.ps1 -Version '${{ steps.ver.outputs.version }}'
+
+      - name: 生成校验和
+        working-directory: bin
+        run: sha256sum ./* > checksums.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.ver.outputs.version }}
+          files: |
+            bin/zerotier-webui-*
+            bin/checksums.txt
+          # 手动触发时不建 release，只验证流水线能跑通
+          draft: false
+          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
+          generate_release_notes: true
+        if: github.event_name == 'push'
