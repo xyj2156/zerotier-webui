@@ -153,6 +153,8 @@ func (s *Service) DeleteNetwork(ctx context.Context, nwid string) Result {
 }
 
 // Members 把本地 API 的「地址为键」对象规整成数组，并保证每项带 nodeId。
+// 顶层值可能是完整对象（部分版本），也可能是紧凑形态的 revision 整数
+// （zerotier-one 1.16.x 等），后者逐个回源 GET /member/<nodeId> 补全。
 // 输出按 nodeId 字典序排列（Go map 无序，排序是为结果可复现）。
 func (s *Service) Members(ctx context.Context, nwid string) Result {
 	res := s.Client.Get(ctx, "/controller/network/"+nwid+"/member")
@@ -182,18 +184,33 @@ func (s *Service) Members(ctx context.Context, nwid string) Result {
 	list := make([]json.RawMessage, 0, len(keys))
 	for _, key := range keys {
 		member := raw[key]
-		if !isObject(member) {
-			continue // 旧版可能只返回地址数组
-		}
-		obj, err := decodeObject(member)
-		if err != nil {
+
+		// 顶层已给完整对象：保证带 nodeId 后直接使用（部分版本走这条）。
+		if isObject(member) {
+			if obj, err := decodeObject(member); err == nil {
+				if _, ok := obj["nodeId"]; ok {
+					list = append(list, member)
+					continue
+				}
+			}
+			list = append(list, withNodeID(member, key))
 			continue
 		}
-		if _, ok := obj["nodeId"]; ok {
-			list = append(list, member)
+
+		// 紧凑形态：zerotier-one 1.16.x 等构建的顶层列表把成员值写成 revision 整数
+		// （如 {"4a7090b201":6}），必须逐个回源 GET /member/<nodeId> 取回完整对象，
+		// 否则整表被当成空、界面「成员为空」。回源失败也至少产出一行占位，避免误判为空。
+		if full := s.GetMember(ctx, nwid, key); full.Success && isObject(full.Body) {
+			body := full.Body
+			if obj, err := decodeObject(body); err == nil {
+				if _, ok := obj["nodeId"]; !ok {
+					body = withNodeID(body, key)
+				}
+			}
+			list = append(list, body)
 			continue
 		}
-		list = append(list, withNodeID(member, key))
+		list = append(list, json.RawMessage(mustJSON(map[string]string{"nodeId": key})))
 	}
 
 	return okResult(mustJSON(list))

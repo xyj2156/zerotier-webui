@@ -182,6 +182,63 @@ func TestMembersSkipsNonObjectEntries(t *testing.T) {
 	}
 }
 
+// TestMembersHydratesCompactForm 复现真实 bug：zerotier-one 1.16.x 顶层 member 列表
+// 把值写成 revision 整数（{"4a7090b201":6}），旧实现据此整表丢弃 → 界面「成员为空」。
+func TestMembersHydratesCompactForm(t *testing.T) {
+	client, seen := fakeController(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/controller/network/8056c240dc8048e1/member":
+			_, _ = w.Write([]byte(`{"20a4c9f0aa":7,"107b2c4b12":6,"30b1cd44ee":5}`))
+		case "/controller/network/8056c240dc8048e1/member/107b2c4b12":
+			_, _ = w.Write([]byte(`{"address":"107b2c4b12","authorized":true,"creationTime":1758000000000}`))
+		case "/controller/network/8056c240dc8048e1/member/20a4c9f0aa":
+			_, _ = w.Write([]byte(`{"nodeId":"20a4c9f0aa","name":"x","authorized":false}`))
+		case "/controller/network/8056c240dc8048e1/member/30b1cd44ee":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"message":"no such member"}`))
+		default:
+			t.Errorf("未预期的路径 %s", r.URL.Path)
+		}
+	})
+
+	res := NewService(client, "").Members(context.Background(), "8056c240dc8048e1")
+	if !res.Success {
+		t.Fatalf("成员列表失败：%s", res.Message)
+	}
+	var list []map[string]any
+	if err := json.Unmarshal(res.Body, &list); err != nil {
+		t.Fatalf("结果不是数组：%s (%v)", res.Body, err)
+	}
+	if len(list) != 3 {
+		t.Fatalf("应产出 3 行（含 1 行回源失败占位），实际 %d：%s", len(list), res.Body)
+	}
+	// 按 nodeId 字典序：107b < 20a4 < 30b1
+	if list[0]["nodeId"] != "107b2c4b12" || list[0]["authorized"] != true {
+		t.Errorf("紧凑条目应由回源对象补全并注入 nodeId：%v", list[0])
+	}
+	if list[1]["nodeId"] != "20a4c9f0aa" {
+		t.Errorf("已有 nodeId 不应被覆盖：%v", list[1])
+	}
+	if list[2]["nodeId"] != "30b1cd44ee" {
+		t.Errorf("回源失败也应产出带 nodeId 的占位行：%v", list[2])
+	}
+	if strings.Count(string(res.Body), `"nodeId"`) != 3 {
+		t.Errorf("每行应恰好一个 nodeId：%s", res.Body)
+	}
+	if !strings.Contains(string(res.Body), "1758000000000") {
+		t.Errorf("成员数值未保真：%s", res.Body)
+	}
+	hydrations := 0
+	for _, line := range *seen {
+		if strings.Contains(line, "/member/") {
+			hydrations++
+		}
+	}
+	if hydrations != 3 {
+		t.Errorf("三个紧凑成员应各回源一次，实际 %d：%v", hydrations, *seen)
+	}
+}
+
 func TestCreateNetworkBuildsNwidFromControllerAddressAndMergesDefaults(t *testing.T) {
 	var captured []string
 	client, _ := fakeController(t, func(w http.ResponseWriter, r *http.Request) {
