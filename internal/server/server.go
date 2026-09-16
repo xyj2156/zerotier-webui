@@ -49,6 +49,7 @@ func (s *Server) Handler() http.Handler {
 	handlers := map[string]http.HandlerFunc{
 		"info":                     s.handleInfo,
 		"status":                   s.handleStatus,
+		"peers":                    s.handlePeers,
 		"networks":                 s.handleNetworks,
 		"network-count":            s.handleNetworkCount,
 		"networks.store":           s.handleNetworkCreate,
@@ -171,6 +172,10 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	s.call(w, r, func(svc *zt.Service) zt.Result { return svc.Status(r.Context()) })
+}
+
+func (s *Server) handlePeers(w http.ResponseWriter, r *http.Request) {
+	s.call(w, r, func(svc *zt.Service) zt.Result { return svc.Peers(r.Context()) })
 }
 
 func (s *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {

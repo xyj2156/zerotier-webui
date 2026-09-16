@@ -39,6 +39,14 @@ func (s *Service) Status(ctx context.Context) Result {
 	return s.Client.Get(ctx, "/status")
 }
 
+// Peers 原样透传本机 zerotier-one 的 GET /peer（当前对等体数组）。
+// 控制器返回的 member 对象不含在线状态与公网端点，这两项只在 /peer 里
+// （physicalAddress、path[].addresses、latency）；在线/端点/末次活跃由前端
+// 按 address 关联这份表逐行补全，故后端只做一次薄透传、不进成员列表循环。
+func (s *Service) Peers(ctx context.Context) Result {
+	return s.Client.Get(ctx, "/peer")
+}
+
 // Networks 把 nwid 数组逐个补全成列表所需的关键字段。
 func (s *Service) Networks(ctx context.Context) Result {
 	res := s.Client.Get(ctx, "/controller/network")
@@ -153,9 +161,12 @@ func (s *Service) DeleteNetwork(ctx context.Context, nwid string) Result {
 }
 
 // Members 把本地 API 的「地址为键」对象规整成数组，并保证每项带 nodeId。
-// 顶层值可能是完整对象（部分版本），也可能是紧凑形态的 revision 整数
-// （zerotier-one 1.16.x 等），后者逐个回源 GET /member/<nodeId> 补全。
-// 输出按 nodeId 字典序排列（Go map 无序，排序是为结果可复现）。
+//
+// 这里刻意只做「原生透传」，不回源补全：顶层值若是完整对象就原样带出（缺 nodeId
+// 按键名补上），若是紧凑形态（zerotier-one 1.16.x 把值写成 revision 整数
+// {"4a7090b201":6}）则只产出 {"nodeId": addr} 占位。补全完整成员字段由前端逐行
+// 调 GET /member/<nodeId>（networks.members.show）完成，避免把 N 次回源压进本请求
+// 导致成员一多就整体超时。输出按 nodeId 字典序排列（Go map 无序，排序为可复现）。
 func (s *Service) Members(ctx context.Context, nwid string) Result {
 	res := s.Client.Get(ctx, "/controller/network/"+nwid+"/member")
 	if !res.Success {
@@ -185,7 +196,7 @@ func (s *Service) Members(ctx context.Context, nwid string) Result {
 	for _, key := range keys {
 		member := raw[key]
 
-		// 顶层已给完整对象：保证带 nodeId 后直接使用（部分版本走这条）。
+		// 顶层已给完整对象：保证带 nodeId 后原样透传（部分版本走这条）。
 		if isObject(member) {
 			if obj, err := decodeObject(member); err == nil {
 				if _, ok := obj["nodeId"]; ok {
@@ -197,19 +208,8 @@ func (s *Service) Members(ctx context.Context, nwid string) Result {
 			continue
 		}
 
-		// 紧凑形态：zerotier-one 1.16.x 等构建的顶层列表把成员值写成 revision 整数
-		// （如 {"4a7090b201":6}），必须逐个回源 GET /member/<nodeId> 取回完整对象，
-		// 否则整表被当成空、界面「成员为空」。回源失败也至少产出一行占位，避免误判为空。
-		if full := s.GetMember(ctx, nwid, key); full.Success && isObject(full.Body) {
-			body := full.Body
-			if obj, err := decodeObject(body); err == nil {
-				if _, ok := obj["nodeId"]; !ok {
-					body = withNodeID(body, key)
-				}
-			}
-			list = append(list, body)
-			continue
-		}
+		// 紧凑形态：值只是 revision 整数，无完整字段。此处不再回源，只产出带 nodeId
+		// 的占位行，保证界面「成员不为空」；完整字段由前端逐行补全。
 		list = append(list, json.RawMessage(mustJSON(map[string]string{"nodeId": key})))
 	}
 

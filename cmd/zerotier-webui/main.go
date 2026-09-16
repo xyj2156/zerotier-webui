@@ -93,6 +93,7 @@ func adminRoutes() []forge.Route {
 
 	return []forge.Route{
 		{Name: "status", URI: "api/status", Methods: get},
+		{Name: "peers", URI: "api/peers", Methods: get},
 		{Name: "networks", URI: "api/networks", Methods: get},
 		{Name: "network-count", URI: "api/network-count", Methods: get},
 		{Name: "networks.store", URI: "api/networks", Methods: post},

@@ -182,22 +182,19 @@ func TestMembersSkipsNonObjectEntries(t *testing.T) {
 	}
 }
 
-// TestMembersHydratesCompactForm 复现真实 bug：zerotier-one 1.16.x 顶层 member 列表
-// 把值写成 revision 整数（{"4a7090b201":6}），旧实现据此整表丢弃 → 界面「成员为空」。
-func TestMembersHydratesCompactForm(t *testing.T) {
+// TestMembersCompactFormReturnsNativePlaceholdersWithoutHydration 复现真实 bug 的另一半：
+// zerotier-one 1.16.x 顶层 member 列表把值写成 revision 整数（{"4a7090b201":6}）。
+// 旧实现据此整表丢弃 → 界面「成员为空」。现改为「原生透传、不回源」：紧凑条目产出一行
+// 仅带 nodeId 的占位，完整字段交由前端逐行调 networks.members.show 补全。
+// 关键点：本请求不得再逐个打 GET /member/<nodeId>，否则成员一多就整体超时。
+func TestMembersCompactFormReturnsNativePlaceholdersWithoutHydration(t *testing.T) {
 	client, seen := fakeController(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/controller/network/8056c240dc8048e1/member":
 			_, _ = w.Write([]byte(`{"20a4c9f0aa":7,"107b2c4b12":6,"30b1cd44ee":5}`))
-		case "/controller/network/8056c240dc8048e1/member/107b2c4b12":
-			_, _ = w.Write([]byte(`{"address":"107b2c4b12","authorized":true,"creationTime":1758000000000}`))
-		case "/controller/network/8056c240dc8048e1/member/20a4c9f0aa":
-			_, _ = w.Write([]byte(`{"nodeId":"20a4c9f0aa","name":"x","authorized":false}`))
-		case "/controller/network/8056c240dc8048e1/member/30b1cd44ee":
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{"message":"no such member"}`))
 		default:
-			t.Errorf("未预期的路径 %s", r.URL.Path)
+			// 任何 /member/<nodeId> 子路径都说明后端仍在回源，属于本次要消除的行为。
+			t.Errorf("不应发生回源补全请求：%s", r.URL.Path)
 		}
 	})
 
@@ -210,23 +207,19 @@ func TestMembersHydratesCompactForm(t *testing.T) {
 		t.Fatalf("结果不是数组：%s (%v)", res.Body, err)
 	}
 	if len(list) != 3 {
-		t.Fatalf("应产出 3 行（含 1 行回源失败占位），实际 %d：%s", len(list), res.Body)
+		t.Fatalf("紧凑形态应产出 3 行占位，实际 %d：%s", len(list), res.Body)
 	}
 	// 按 nodeId 字典序：107b < 20a4 < 30b1
-	if list[0]["nodeId"] != "107b2c4b12" || list[0]["authorized"] != true {
-		t.Errorf("紧凑条目应由回源对象补全并注入 nodeId：%v", list[0])
+	for i, want := range []string{"107b2c4b12", "20a4c9f0aa", "30b1cd44ee"} {
+		if list[i]["nodeId"] != want {
+			t.Errorf("第 %d 行应为 nodeId=%s 的占位，实际 %v", i, want, list[i])
+		}
 	}
-	if list[1]["nodeId"] != "20a4c9f0aa" {
-		t.Errorf("已有 nodeId 不应被覆盖：%v", list[1])
-	}
-	if list[2]["nodeId"] != "30b1cd44ee" {
-		t.Errorf("回源失败也应产出带 nodeId 的占位行：%v", list[2])
+	if _, hasAuth := list[0]["authorized"]; hasAuth {
+		t.Errorf("紧凑占位不应含回源字段：%v", list[0])
 	}
 	if strings.Count(string(res.Body), `"nodeId"`) != 3 {
 		t.Errorf("每行应恰好一个 nodeId：%s", res.Body)
-	}
-	if !strings.Contains(string(res.Body), "1758000000000") {
-		t.Errorf("成员数值未保真：%s", res.Body)
 	}
 	hydrations := 0
 	for _, line := range *seen {
@@ -234,8 +227,8 @@ func TestMembersHydratesCompactForm(t *testing.T) {
 			hydrations++
 		}
 	}
-	if hydrations != 3 {
-		t.Errorf("三个紧凑成员应各回源一次，实际 %d：%v", hydrations, *seen)
+	if hydrations != 0 {
+		t.Errorf("紧凑成员不应触发任何回源，实际 %d：%v", hydrations, *seen)
 	}
 }
 
