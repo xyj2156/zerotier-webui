@@ -1,17 +1,35 @@
 # 交叉编译单执行产物：windows / linux / darwin × amd64 / arm64。
 #
-# 前置：先 `pnpm -C web build` 产出 web/dist/（go:embed 读取它，产物本身不入库）。
-# 用法：pwsh -NoProfile -File scripts/build.ps1 [-Version v1.0.0] [-OutputDir bin]
+# 前置：需装 pnpm（corepack enable 或 npm i -g pnpm）与 Go；脚本会自动构建前端再交叉编译。
+# 用法：pwsh -NoProfile -File scripts/build.ps1 [-Version v1.0.0] [-OutputDir bin] [-SkipWeb]
+#       -SkipWeb：dist 已是最新时跳过前端构建，只做交叉编译。
 param(
     [string]$Version = '',
-    [string]$OutputDir = 'bin'
+    [string]$OutputDir = 'bin',
+    [switch]$SkipWeb
 )
 
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
 
+if ($SkipWeb) {
+    Write-Host '跳过前端构建（-SkipWeb）'
+} else {
+    Push-Location web
+    try {
+        $installArgs = @('install')
+        if ($env:CI) { $installArgs += '--frozen-lockfile' }
+        & pnpm @installArgs
+        if ($LASTEXITCODE -ne 0) { throw "pnpm $($installArgs -join ' ') 失败" }
+        & pnpm build
+        if ($LASTEXITCODE -ne 0) { throw 'pnpm build 失败' }
+    } finally {
+        Pop-Location
+    }
+}
+
 if (-not (Test-Path 'web/dist/index.html')) {
-    throw 'web/dist/index.html 不存在：请先执行 pnpm -C web build，再交叉编译。'
+    throw 'web/dist/index.html 不存在且未跳过前端构建：请查看上面的 pnpm 输出。'
 }
 
 $module = 'github.com/xyj2156/zerotier-webui'

@@ -48,11 +48,6 @@ jobs:
           go vet ./...
           go test ./... -count=1
 
-      - name: 构建前端产物
-        run: |
-          pnpm -C web install --frozen-lockfile
-          pnpm -C web build
-
       - name: 解析版本号
         id: ver
         run: |
@@ -62,9 +57,10 @@ jobs:
             echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: 交叉编译六个目标
-        shell: pwsh
-        run: ./scripts/build.ps1 -Version '${{ steps.ver.outputs.version }}'
+      - name: 构建前端产物并交叉编译六个目标
+        shell: bash
+        # build.sh 会先 pnpm install --frozen-lockfile + pnpm build 产出 web/dist，再交叉编译六个目标。
+        run: bash ./scripts/build.sh '${{ steps.ver.outputs.version }}'
 
       - name: 生成校验和
         working-directory: bin
