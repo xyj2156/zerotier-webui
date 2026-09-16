@@ -25,7 +25,7 @@
                   el-form-item(label="隐藏成员")
                     el-switch(v-model="row.hidden" @change="dirty(row)")
                   el-form-item(label="节点IP")
-                    span.font-mono {{ row.physicalAddress || row.publicAddress || '-' }}
+                    span.font-mono {{ row.endpoints && row.endpoints[0] ? row.endpoints[0] : (row.physicalAddress || row.publicAddress || '-') }}
                   el-form-item(label="稳定端点")
                     span.font-mono.text-12px {{ (row.stableEndpoints || []).join(' , ') || '-' }}
                   el-form-item(label="成员流规则")
@@ -55,11 +55,23 @@
               el-switch(v-model="row.activeBridge" @change="dirty(row)")
           el-table-column(label="状态" width="90")
             template(#default="{ row }")
-              el-tag(:type="row.online ? 'success' : 'info'") {{ row.online ? '在线' : '离线' }}
+              span(v-if="row._loading" class="text-gray-400") 加载中
+              el-tag(v-else :type="row.online ? 'success' : 'info'") {{ row.online ? '在线' : '离线' }}
           el-table-column(label="末次活跃" width="180")
-            template(#default="{ row }") {{ formatTime(row.lastOnline) }}
+            template(#default="{ row }")
+              span(v-if="row._loading" class="text-gray-400") 加载中
+              span(v-else) {{ formatTime(row.lastOnline) }}
           el-table-column(label="版本" width="100")
-            template(#default="{ row }") {{ row.clientVersion || '-' }}
+            template(#default="{ row }")
+              span(v-if="row._loading" class="text-gray-400") 加载中
+              span(v-else) {{ row.version || '-' }}
+          el-table-column(label="端点" min-width="180")
+            template(#default="{ row }")
+              span(v-if="row._loading" class="text-gray-400") 加载中
+              el-tag(v-else-if="row.isController" type="warning") 控制器
+              .flex.flex-col(v-else-if="row.endpoints && row.endpoints.length")
+                span.font-mono.text-12px(v-for="(ep, i) in row.endpoints" :key="i") {{ ep }}
+              span(v-else) -
           el-table-column(label="操作" width="120" fixed="right")
             template(#default="{ row }")
               el-button(v-if="row._dirty" type="success" link size="small" @click="save(row)") 保存
@@ -160,6 +172,8 @@
 
   const route = useRoute();
   const nwid = route.params.nwid;
+  // 自建控制器 nwid = 控制器节点地址(10hex) + 6 位随机 hex，取前 10 位即控制器地址。
+  const controllerAddr = String(nwid || '').slice(0, 10).toLowerCase();
   const activeTab = ref('members');
 
   const network = ref({});
@@ -357,28 +371,155 @@
     loadNetwork();
   }
 
+  // address -> peer 映射，来自一次性 GET /peer；在线状态与公网端点只存在于这份表里，
+  // 控制器返回的 member 对象不含这些字段。非响应式即可，仅供逐行补全时读取。
+  let peerMap = {};
+
   async function loadMembers() {
     const { data, error } = await callMember('networks.members', { nwid });
     if (error) return;
     const arr = Array.isArray(data) ? data : Object.values(data || {});
+    // 先按原生返回渲染占位行（带 _loading），保证「成员不为空」且立即可见。
     members.value = arr.map((m) => normalizeMember(m));
+    // 逐行补全不阻塞本函数返回：表格先出现，数据一行行填充。
+    hydrateMembers();
+  }
+
+  // 一次性拉对等体表，建 address(小写)->peer 映射。失败时返回空表，成员仍会显示为离线。
+  async function loadPeerMap() {
+    const { data, error } = await callMember('peers', {});
+    const map = {};
+    if (error || !Array.isArray(data)) return map;
+    for (const p of data) {
+      const addr = String(p.address || '').toLowerCase();
+      if (addr) map[addr] = p;
+    }
+    return map;
+  }
+
+  async function hydrateMembers() {
+    peerMap = await loadPeerMap();
+    // 逐行串行补全：每行一个独立的小请求（GET /member/<id>），命中即时更新该响应式行，
+    // 既满足「一个一个填充」，也避免成员量大时后端聚合超时。
+    for (const row of members.value) {
+      await fillMemberRow(row);
+    }
+  }
+
+  async function fillMemberRow(row) {
+    const id = row.nodeId || row.address;
+    // 原生列表若已含完整字段（能取到版本或 IP 分配），无需回源，直接套用 peer 映射收尾。
+    if (!row._complete) {
+      const { data, error } = await callMember('networks.members.show', { nwid, id });
+      if (!error && data && typeof data === 'object') applyMemberFields(row, data);
+    }
+    applyPeerFields(row, peerMap[String(id).toLowerCase()]);
+    row._loading = false;
+  }
+
+  function ipsOf(list) {
+    return (Array.isArray(list) ? list : [])
+      .map((ip) => (typeof ip === 'string' ? ip : ip && ip.address))
+      .filter(Boolean);
+  }
+
+  // 版本号：优先控制器给的 clientVersion，否则由 vMajor/vMinor/vRev 拼成 x.y.z。
+  function versionOf(m) {
+    if (m.clientVersion) return m.clientVersion;
+    if (m.vMajor !== undefined && m.vMinor !== undefined && m.vRev !== undefined) {
+      return `${m.vMajor}.${m.vMinor}.${m.vRev}`;
+    }
+    return '';
+  }
+
+  // 完整成员字段覆盖到行上（名称、IP、授权、桥接、末次活跃、版本等）。
+  function applyMemberFields(row, m) {
+    Object.assign(row, m);
+    row.nodeId = m.nodeId || m.address || row.nodeId;
+    row.ipList = ipsOf(m.ipAssignments);
+    row.name = m.name || '';
+    row.authorized = !!m.authorized;
+    row.activeBridge = !!m.activeBridge;
+    row.noAutoAssignIps = !!m.noAutoAssignIps;
+    row.hidden = !!m.hidden;
+    row.flowRules = m.flowRules || '';
+    row.version = versionOf(m);
+    row.lastOnline = m.lastOnline ?? m.lastActive ?? null;
+    row._complete = true;
+  }
+
+  // 从对等体表补在线状态、端点 IP 与末次活跃。真机 /peer 结构：
+  //   peer.paths[] = { address:"ip/port", active, expired, lastSend, lastReceive(ms), preferred }
+  // 在线 = 至少存在一条 active 且未 expired 的路径；末次活跃取各路径 lastSend/lastReceive 的最大值。
+  function applyPeerFields(row, peer) {
+    // 控制器节点自身永远在线：不依赖 /peer 判定，端点列交由模板渲染成「控制器」。
+    if (row.isController) {
+      row.online = true;
+      return;
+    }
+    if (!peer) {
+      row.online = false;
+      row.endpoints = [];
+      return;
+    }
+    if (!row.version && peer.version) row.version = peer.version;
+
+    const paths = Array.isArray(peer.paths) ? peer.paths : [];
+    const isLive = (p) => p && p.active && !p.expired;
+    row.online = paths.some(isLive);
+
+    // 端点：活跃/优先路径排前面，再补其余路径，按字符串去重。
+    const ordered = [...paths].sort((a, b) => {
+      const rank = (p) => (isLive(p) ? 0 : 1);
+      return rank(a) - rank(b);
+    });
+    const seen = new Set();
+    const eps = [];
+    for (const p of ordered) {
+      const addr = p && p.address;
+      if (addr && !seen.has(addr)) {
+        seen.add(addr);
+        eps.push(addr);
+      }
+    }
+    row.endpoints = eps;
+
+    // 末次活跃：跨所有路径取 lastReceive/lastSend 的最大绝对时间戳（毫秒）。
+    let ts = row.lastOnline || 0;
+    for (const p of paths) {
+      if (!p) continue;
+      ts = Math.max(ts, p.lastReceive || 0, p.lastSend || 0);
+    }
+    row.lastOnline = ts || null;
   }
 
   function normalizeMember(m) {
-    const ipList = (m.ipAssignments || [])
-      .map((ip) => (typeof ip === 'string' ? ip : ip.address))
-      .filter(Boolean);
-    return {
+    const node = m.nodeId || m.address || '';
+    const hasFullFields =
+      m.ipAssignments !== undefined ||
+      m.vMajor !== undefined ||
+      m.name !== undefined ||
+      m.clientVersion !== undefined;
+    const row = {
       ...m,
-      ipList,
+      nodeId: node,
+      ipList: ipsOf(m.ipAssignments),
+      version: versionOf(m),
       name: m.name || '',
       authorized: !!m.authorized,
       activeBridge: !!m.activeBridge,
       noAutoAssignIps: !!m.noAutoAssignIps,
       hidden: !!m.hidden,
       flowRules: m.flowRules || '',
+      online: false,
+      endpoints: [],
+      isController: String(node).toLowerCase() === controllerAddr,
+      lastOnline: m.lastOnline ?? m.lastActive ?? null,
+      _complete: hasFullFields,
+      _loading: true,
       _dirty: false,
     };
+    return row;
   }
 
   function dirty(row) {
